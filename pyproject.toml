@@ -1,9 +1,10 @@
 [project]
 name = "haiwpa"
 version = "0.1.0"
-description = "Add your description here"
+description = "Hybrid AI Workout Planning Assistant"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=2.13.1",
+    "pyswip>=0.3.3",
 ]
