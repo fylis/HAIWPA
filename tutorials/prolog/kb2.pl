@@ -1,3 +1,7 @@
+/*
+Source : https://lpn.swi-prolog.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse1
+*/
+
 happy(yolanda).
 listens_music(mia).
 listens_music(yolanda) :- happy(yolanda).

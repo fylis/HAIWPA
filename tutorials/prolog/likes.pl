@@ -1,3 +1,7 @@
+/*
+Source : https://www.swi-prolog.org/pldoc/man?section=quickstart
+*/
+
 likes(sam, Food) :- indian(Food), mild(Food).
 likes(sam, Food) :- chinese(Food).
 likes(sam, Food) :- italian(Food).
