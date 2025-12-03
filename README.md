@@ -1,7 +1,7 @@
 # HAIWPA
 Hybrid AI Workout Planning Assistant
 
-# Requirements
+## Requirements
 - llama.cpp with a compatible .gguf model
 - Python
 - uv
@@ -24,9 +24,16 @@ uv sync
 ```
 
 4. Launch the llama.cpp server
-```bash
- python -m llama_cpp.server --model model.gguf --host 0.0.0.0 --port 8000
-```
+    
+    4.1 Using llama-cpp-python library
+    ```bash
+    python -m llama_cpp.server --model model.gguf --host 0.0.0.0 --port 8000
+    ```
+
+    4.1 Manually, if you have installed llama.cpp on your computer
+    ```bash
+    llama-server -m model.gguf --host 0.0.0.0 --port 8000
+    ```
 
 5. Launch the HAIWPA Chatbot
 ```bash
