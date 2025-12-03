@@ -12,7 +12,7 @@ API_KEY = "haiwpa-key"
 MODEL_PATH = "models/Llama-3.2-3B-Instruct-Q5_K_M.gguf"
 MODEL_ALIAS = "Llama 3.2 3B Instruct"
 TEMPERATURE = 0.7  # Less randomness, more predictable
-MAX_TOKEN = 256
+MAX_TOKEN = 512
 
 # Gradio interface settings
 GRADIO_SERVER_URL = "127.0.0.1"
