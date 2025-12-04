@@ -13,7 +13,7 @@ Assistant : Claude
 """
 
 from openai import OpenAI
-from haiwpa_workout import FitnessExtract
+from haiwpa_workout import FitnessExtract, MultipleFitnessExtract
 import config
 import instructor
 
@@ -103,11 +103,13 @@ class HAIWPABackend:
                         "content": f"Extract fitness information from the following input:\n{user_input} using a JSON format",
                     }
                 ],
-                response_model=FitnessExtract,
+                response_model=MultipleFitnessExtract,
                 temperature=config.TEMPERATURE_2,
                 max_tokens=self.max_tokens,
             )
-            return response
+            if response and hasattr(response, "sessions"):
+                return response.sessions
+            return None
         except Exception as e:
             # return f"Error: {str(e)}"
             return None
@@ -117,10 +119,15 @@ class HAIWPABackend:
         # Printing fitness extraction informations from user prompts only if the message is related to fitness
         if self.is_fitness_related(current_message):
             print("Starting the extraction process...")
-            fitness_info = self.extract_fitness_info(current_message)
-            if fitness_info:
-                fitness_info.print_extracted_info()
-                fitness_info.save_to_json(current_message)
+            fitness_sessions = self.extract_fitness_info(current_message)
+            if fitness_sessions:
+                for session in fitness_sessions:
+                    session.print_extracted_info()
+                    session.save_to_json(current_message)
+            # fitness_info = self.extract_fitness_info(current_message)
+            # if fitness_info:
+            #     fitness_info.print_extracted_info()
+            #     fitness_info.save_to_json(current_message)
 
         # Converting Gradio history format to messages format before sending to the LLM
         messages = []
