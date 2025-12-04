@@ -12,52 +12,25 @@ Source :
 Assistant : Claude
 """
 
-from typing import List
 from openai import OpenAI
-import instructor
-from pydantic import BaseModel, Field
+from haiwpa_workout import FitnessExtract
 import config
-
-
-# Class to extract fitness exercises, duration limits, recent training history, injuries from user input
-# This function is based on https://www.youtube.com/watch?v=VllkW63LWbY
-class FitnessExtract(BaseModel):
-    muscle: List[str] = Field(
-        description="You have to find a muscle group from the user input"
-    )
-    duration: List[float] = Field(
-        description="You have to find the duration in fraction of hours from the user input that is encoded as a float for each muscle group"
-    )
-
-    # Still have to work on :
-
-    # exercises: List[str] = Field(
-    #     description="You have to find exercises related to the muscle group"
-    # )
-    # duration_limits: List[str] = Field(
-    #     alias="durationLimits",
-    #     description="You have to find duration limits for the exercises from the user input, the format has to be in fraction of hours like 0.1 for 6 minutes, 0.5 for 30 minutes, 1 for 1 hour",
-    # )
-    # recent_training_history: List[str] = Field(
-    #     alias="recentTrainingHistory",
-    #     description="You have to get the history of recent training from the user input, the format has to be muscle, exercise, duration, date",
-    # )
-    # injuries: List[str] = Field(
-    #     description="You have to find injuries from the user input for each muscle if there is any, if not return an empty list"
-    # )
+import instructor
 
 
 class HAIWPABackend:
     def __init__(self):
-        self.client = OpenAI(base_url=f"{config.SERVER_URL}/v1", api_key=config.API_KEY)
+        self.client = OpenAI(
+            base_url=f"{config.SERVER_URL_1}/v1", api_key=config.API_KEY
+        )
 
         # Used for structured JSON extraction
         self.instructor_client = instructor.from_openai(
-            OpenAI(base_url=f"{config.SERVER_URL}/v1", api_key=config.API_KEY),
+            OpenAI(base_url=f"{config.SERVER_URL_1}/v1", api_key=config.API_KEY),
             mode=instructor.Mode.JSON,
         )
-        self.model_name = config.MODEL_ALIAS
-        self.temperature = config.TEMPERATURE
+        self.model_name = config.MODEL_ALIAS_1
+        self.temperature = config.TEMPERATURE_1
         self.max_tokens = config.MAX_TOKEN
 
     # Wait for a response from the model after the prompt is sent
@@ -131,25 +104,25 @@ class HAIWPABackend:
                     }
                 ],
                 response_model=FitnessExtract,
-                temperature=self.temperature,
+                temperature=config.TEMPERATURE_2,
                 max_tokens=self.max_tokens,
             )
             return response
         except Exception as e:
-            return f"Error: {str(e)}"
+            # return f"Error: {str(e)}"
+            return None
 
     # Adds the user/bot message history to the current message and gets a response
     def chat_with_history(self, current_message, history):
         # Printing fitness extraction informations from user prompts only if the message is related to fitness
         if self.is_fitness_related(current_message):
+            print("Starting the extraction process...")
             fitness_info = self.extract_fitness_info(current_message)
-            print("=====================================")
-            print("=== Extracted Fitness Information ===")
             if fitness_info:
-                print(f"Muscle: {fitness_info.muscle}")
-                print(f"Duration: {fitness_info.duration} hours")
-            print("=====================================")
+                fitness_info.print_extracted_info()
+                fitness_info.save_to_json(current_message)
 
+        # Converting Gradio history format to messages format before sending to the LLM
         messages = []
         if history:
             for msg in history:
