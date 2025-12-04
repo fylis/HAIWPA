@@ -30,10 +30,13 @@ uv sync
     python -m llama_cpp.server --model model.gguf --host 0.0.0.0 --port 8000
     ```
 
-    4.1 Manually, if you have installed llama.cpp on your computer
+    4.2 Manually, if you have installed llama.cpp on your computer
     ```bash
     llama-server -m model.gguf --host 0.0.0.0 --port 8000
     ```
+    
+> ⚠️ **Note:** If you change the port, make sure to update `SERVER_URL_1` in `config.py` accordingly (e.g., `http://localhost:YOUR_PORT`)
+
 
 5. Launch the HAIWPA Chatbot
 ```bash
