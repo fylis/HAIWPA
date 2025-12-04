@@ -1,5 +1,9 @@
 """
 Configuration settings for HAIWPA Chat Application.
+
+All constants containing the number 1 are used for the main LLM model.
+All constants containing the number 2 are used for the secondary LLM model which is used for the extraction of JSON data if needed.
+
 """
 
 import os
