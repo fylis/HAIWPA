@@ -38,7 +38,7 @@ class FitnessExtract(BaseModel):
             "- If user gives full date: use as-is in the good format"
             "Always output in YYYY-MM-DD format."
         ),
-        default=f"{datetime.datetime.now().strftime('%Y-%m-%d')}"
+        default=f"{datetime.datetime.now().strftime('%Y-%m-%d')}",
     )
     injuries: str = Field(
         description="Any injuries or pain mentioned to specific muscles", default=""
@@ -83,3 +83,9 @@ class FitnessExtract(BaseModel):
             json.dump(data, f, indent=2)
 
         print(f"Saved workout data to {config.CONTEXT_FILE}")
+
+# Class to handle multiple training sessions extracted from user input
+class MultipleFitnessExtract(BaseModel):
+    sessions: List[FitnessExtract] = Field(
+        description="List of training sessions extracted from the message. Each session is a separate workout with its own date, exercises, and duration."
+    )
