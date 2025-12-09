@@ -21,12 +21,12 @@ import instructor
 class HAIWPABackend:
     def __init__(self):
         self.client = OpenAI(
-            base_url=f"{config.SERVER_URL_1}/v1", api_key=config.API_KEY
+            base_url=f"{config.LLM_SERVER_1_URL}/v1", api_key=config.API_KEY
         )
 
         # Used for structured JSON extraction
         self.instructor_client = instructor.from_openai(
-            OpenAI(base_url=f"{config.SERVER_URL_1}/v1", api_key=config.API_KEY),
+            OpenAI(base_url=f"{config.LLM_SERVER_1_URL}/v1", api_key=config.API_KEY),
             mode=instructor.Mode.JSON,
         )
         self.model_name = config.MODEL_ALIAS_1
@@ -111,7 +111,8 @@ class HAIWPABackend:
                 return response.sessions
             return None
         except Exception as e:
-            # return f"Error: {str(e)}"
+            print("Not able to extract fitness information")
+            # print(f"\nError: {e}")
             return None
 
     # Adds the user/bot message history to the current message and gets a response
@@ -124,10 +125,6 @@ class HAIWPABackend:
                 for session in fitness_sessions:
                     session.print_extracted_info()
                     session.save_to_json(current_message)
-            # fitness_info = self.extract_fitness_info(current_message)
-            # if fitness_info:
-            #     fitness_info.print_extracted_info()
-            #     fitness_info.save_to_json(current_message)
 
         # Converting Gradio history format to messages format before sending to the LLM
         messages = []
