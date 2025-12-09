@@ -9,8 +9,9 @@ All constants containing the number 2 are used for the secondary LLM model which
 import os
 
 # Configuration for HAIWPA Chat Application
-SERVER_URL_1 = "http://localhost:8000"
-SERVER_URL_2 = "http://localhost:8001"
+LLM_SERVER_1_URL = "http://localhost:8000"
+LLM_SERVER_2_URL = "http://localhost:8001"
+MCP_SERVER_URL = "http://localhost:9000"
 API_KEY = "haiwpa-key"
 
 # Model configuration
