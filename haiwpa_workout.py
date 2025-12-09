@@ -31,17 +31,20 @@ class FitnessExtract(BaseModel):
         description=(
             "Date of the workout in YYYY-MM-DD format. "
             "Extract based on these rules: "
-            "- If user says 'today' or no date mentioned: use today's date using {default}"
-            "- If user says 'yesterday': today minus 1 day "
-            "- If user says 'X days ago': today minus X days "
-            "- If user mentions a specific date without year (e.g., '12-03', 'Dec 3'): use current year "
-            "- If user gives full date: use as-is in the good format"
+            "- If user says 'today' or no date mentioned: use {default} "
+            "- If user says 'yesterday': subtract 1 day from today "
+            "- If user says 'X days ago': subtract X days from today "
+            "- If user says 'tomorrow': add 1 day to today "
+            "- If user says 'in X days': add X days to today "
+            "- If user mentions date without year (e.g., '12-03', 'Dec 3'): use current year "
+            "- If user gives DD.MM.YYYY or DD/MM/YYYY: convert to YYYY-MM-DD "
             "Always output in YYYY-MM-DD format."
         ),
         default=f"{datetime.datetime.now().strftime('%Y-%m-%d')}",
     )
     injuries: str = Field(
-        description="Any injuries or pain mentioned to specific muscles", default=""
+        description="Any injuries or pain mentioned to specific muscles. If there is no injuries, leave this field empty",
+        default=""
     )
 
     # This function prints the extracted information in the console
@@ -83,6 +86,7 @@ class FitnessExtract(BaseModel):
             json.dump(data, f, indent=2)
 
         print(f"Saved workout data to {config.CONTEXT_FILE}")
+
 
 # Class to handle multiple training sessions extracted from user input
 class MultipleFitnessExtract(BaseModel):
