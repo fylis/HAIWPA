@@ -40,8 +40,8 @@ def load_data_from_json(file_path=config.CONTEXT_FILE):
         return
 
     # Clearing previous data in SWI-Prolog
-    list(prolog.query("retractall(workout_history(_, _, _, _))"))
-    list(prolog.query("retractall(injury(_, _))"))
+    list(prolog.query("retractall(workout_history(_, _, _, _))."))
+    list(prolog.query("retractall(injury(_, _))."))
 
     # Load JSON data
     with open(file_path, "r") as f:
@@ -49,21 +49,19 @@ def load_data_from_json(file_path=config.CONTEXT_FILE):
 
     for entry in data:
         date = entry["date"]
-        muscle = entry["muscle"]
+        muscle = entry["muscle"].lower()
         exercises = entry["exercises"]
         duration = entry["duration"]
         injuries = entry["injuries"]
 
         # Workout history assertion
         if date and muscle:
-            query = f"assertz(workout_history('{convert_date_to_timestamp(date)}', '{muscle}', {exercises}, {duration}))"
+            query = f"assertz(workout_history({convert_date_to_timestamp(date)}, '{muscle}', '{exercises}', {duration}))"
             list(prolog.query(query))
 
         # Injuries assertion
-        if injuries in injuries.strip():
-            query = (
-                f"assertz(injury('{convert_date_to_timestamp(date)}', '{injuries}'))"
-            )
+        if injuries and injuries.strip():
+            query = f"assertz(injury({convert_date_to_timestamp(date)}, '{muscle}'))"
             list(prolog.query(query))
 
 
@@ -81,25 +79,26 @@ def validate_workout(muscle: str, date: str):
     if not list(prolog.query(f"muscle_group({muscle}).")):
         return {"approved": False, "reason": "invalid_muscle_group"}
 
-    query = f"can_workout({muscle}, '{convert_date_to_timestamp(date)}', Reason)"
+    query = f"can_workout({muscle}, {convert_date_to_timestamp(date)}, Reason)."
     results = list(prolog.query(query))
 
     if results:
         reason = results[0]["Reason"]
+        # print(f"Prolog result : {reason}")
 
-        if reason == "approved":
-            return {"approved": True, "reason": "approved"}
+        if reason == "workout_allowed":
+            return {"approved": True, "reason": "Approved for the muscle group."}
         elif reason == "injury_present":
-            return {"approved": False, "reason": "injury_present"}
+            return {"approved": False, "reason": "An injury is present."}
         elif reason == "insufficient_rest":
-            return {"approved": False, "reason": "insufficient_rest"}
+            return {"approved": False, "reason": "Insufficient rest on the muscle group."}
 
     # Check if workout is allowed
-    return {"approved": False, "reason": "Not allowed."}
+    return {"approved": False, "reason": "Unknown reason"}
 
 
 load_data_from_json()
-validate_workout("chest", "2025-12-10")
+print(validate_workout("biceps", "2025-12-09"))
 
 # if __name__ == "__main__":
 #     mcp.run()
