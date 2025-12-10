@@ -78,6 +78,22 @@ rest_day_required(legs, 2).
 rest_day_required(glutes, 2).
 
 % =====================================
+% Injury recovery times (in days)
+% =====================================
+
+injury_recovery_days(biceps, 14).
+injury_recovery_days(triceps, 14).
+injury_recovery_days(calves, 14).
+
+injury_recovery_days(abdominals, 21).
+injury_recovery_days(shoulders, 21).
+
+injury_recovery_days(chest, 28).
+injury_recovery_days(back, 28).
+injury_recovery_days(legs, 28).
+injury_recovery_days(glutes, 28).
+
+% =====================================
 % Muscle groups trained together
 % =====================================
 
@@ -125,8 +141,11 @@ recently_trained(Muscle, Date):-
     Days < RequiredRestDays.
 
 % Check if there are any injuries for a muscle group
-has_injury(Muscle):-
-    injury(_, Muscle).
+has_injury(Muscle, CurrentDate):-
+    injury(InjuryDate, Muscle),
+    injury_recovery_days(Muscle, RecoveryDays),
+    days_between(InjuryDate, CurrentDate, DaysSinceInjury),
+    DaysSinceInjury < RecoveryDays.
 
 % Check if an exercise can be performed on a given date
 
@@ -141,6 +160,6 @@ can_workout(Muscle, Date, 'insufficient_rest'):-
 
 % 3. Returning true if both checks are passed
 % \+ for negation
-can_workout(Muscle, Date, 'approved'):-
+can_workout(Muscle, Date, 'workout_allowed'):-
     \+ has_injury(Muscle),
     \+ recently_trained(Muscle, Date).
