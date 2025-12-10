@@ -9,16 +9,13 @@ All constants containing the number 2 are used for the secondary LLM model which
 import os
 
 # Configuration for HAIWPA Chat Application
-LLM_SERVER_1_URL = "http://localhost:8000"
-LLM_SERVER_2_URL = "http://localhost:8001"
+LLM_SERVER_1_URL = "http://localhost:8081"
 MCP_SERVER_URL = "http://localhost:9000"
 API_KEY = "haiwpa-key"
 
 # Model configuration
 MODEL_PATH_1 = "models/Llama-3.2-3B-Instruct-Q5_K_M.gguf"
 MODEL_ALIAS_1 = "Llama 3.2 3B Instruct"
-MODEL_PATH_2 = "models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
-MODEL_ALIAS_2 = "Llama 3.1 8B Instruct"
 TEMPERATURE_1 = 0.7  # Less randomness, more predictable
 TEMPERATURE_2 = 0.3
 MAX_TOKEN = 512
