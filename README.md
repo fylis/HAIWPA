@@ -1,21 +1,27 @@
 # HAIWPA
 Hybrid AI Workout Planning Assistant
 
+## Architecture
+![HAIWPA_Architecture](images/HAIWPA.png)
+
 ## Requirements
-- llama.cpp with a compatible .gguf model
-- Python
-- uv
+- [Llama.cpp](https://github.com/ggml-org/llama.cpp)
+- [SWI-Prolog](https://www.swi-prolog.org/)
+- [Python](https://www.python.org/)
+- [uv](https://docs.astral.sh/uv/)
+- Compatible [.gguf](https://huggingface.co/docs/hub/en/gguf) model, from [HuggingFace](https://huggingface.co/)
+> We have used `LLama-3.2-3B` model for this project.
 
 ## How to use
 
 1. Clone the repository
 ``` bash
-git clone https://github.com/fylis/HAIWPA
+git clone https://github.com/HEI-courses/303.1_2025_LLM_MCP_Prolog_integration
 ```
 
-2. Go to the HAIWPA folder
+2. Go to the `303.1_2025_LLM_MCP_Prolog_integration` folder
 ```bash
-cd HAIWPA
+cd 303.1_2025_LLM_MCP_Prolog_integration
 ```
 
 3. Synchronize the virtual environment
@@ -24,18 +30,12 @@ uv sync
 ```
 
 4. Launch the llama.cpp server
-    
-    4.1 Using llama-cpp-python library
-    ```bash
-    python -m llama_cpp.server --model model.gguf --host 0.0.0.0 --port 8000
-    ```
 
-    4.2 Manually, if you have installed llama.cpp on your computer
-    ```bash
-    llama-server -m model.gguf --host 0.0.0.0 --port 8000
-    ```
+```bash
+llama-server -m model.gguf --host 0.0.0.0 --port 8081
+```
     
-> ⚠️ **Note:** If you change the port, make sure to update `SERVER_URL_1` in `config.py` accordingly (e.g., `http://localhost:YOUR_PORT`)
+> ⚠️ **Note:** If you change the port, make sure to update `LLM_SERVER_1_URL` in `config.py` accordingly (e.g., `http://localhost:YOUR_PORT`)
 
 
 5. Launch the HAIWPA Chatbot
