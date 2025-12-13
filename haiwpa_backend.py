@@ -13,7 +13,7 @@ Assistant : Claude
 """
 
 from openai import OpenAI
-from haiwpa_workout import FitnessExtract, MultipleFitnessExtract
+from haiwpa_workout import MultipleFitnessExtract
 import config
 import instructor
 
@@ -51,43 +51,7 @@ class HAIWPABackend:
     # Check if message contains fitness-related keywords
     def is_fitness_related(self, message: str) -> bool:
         """Check if message contains fitness-related keywords"""
-        fitness_keywords = [
-            "workout",
-            "exercise",
-            "training",
-            "gym",
-            "fitness",
-            "muscle",
-            "cardio",
-            "strength",
-            "injury",
-            "rest",
-            "squat",
-            "bench",
-            "deadlift",
-            "curl",
-            "press",
-            "chest",
-            "back",
-            "legs",
-            "arms",
-            "shoulders",
-            "biceps",
-            "triceps",
-            "abs",
-            "core",
-            "glutes",
-            "run",
-            "running",
-            "jog",
-            "swim",
-            "cycling",
-            "duration",
-            "minutes",
-            "hours",
-            "sets",
-            "reps",
-        ]
+        fitness_keywords = config.FITNESS_KEYWORDS
         message_lower = message.lower()
         return any(keyword in message_lower for keyword in fitness_keywords)
 
@@ -106,13 +70,14 @@ class HAIWPABackend:
                 response_model=MultipleFitnessExtract,
                 temperature=config.TEMPERATURE_2,
                 max_tokens=self.max_tokens,
+                max_retries=3,
             )
             if response and hasattr(response, "sessions"):
                 return response.sessions
             return None
         except Exception as e:
             print("Not able to extract fitness information")
-            # print(f"\nError: {e}")
+            print(f"\nError: {e}")
             return None
 
     # Adds the user/bot message history to the current message and gets a response
