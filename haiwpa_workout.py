@@ -29,7 +29,7 @@ class FitnessExtract(BaseModel):
         description="Specific exercises mentioned (bench press, squats, curls, etc.)"
     )
     duration: float = Field(
-        description="Duration in minutes for each exercise or workout session",
+        description="Duration in minutes for each exercise or workout session, if not mentioned, set it to 0.0",
         default=0.0
     )
     date: str = Field(
@@ -76,6 +76,10 @@ class FitnessExtract(BaseModel):
     def save_to_json(self, user_input: str):
         os.makedirs(config.DATA_FOLDER, exist_ok=True)
 
+        # Converts duration to 0 if it is null
+        if not self.duration:
+            self.duration = 0.0
+
         entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "user_input": user_input,
@@ -109,8 +113,9 @@ class MultipleFitnessExtract(BaseModel):
         description=(
             "CRITICAL: Extract ALL workout sessions from the input. "
             "RULES: "
-            "1 - Each muscle = separate session "
-            "2 - Past workout = completed, future question = planned "
-            "3 - Different dates = separate sessions"
+            "1 - ALWAYS wrap sessions in a 'sessions' array - do not return flat object "
+            "2 - Each muscle = separate session, even if it is the same muscle "
+            "3 - Past workout = completed, future question = planned "
+            "4 - Different dates = separate sessions"
         )
     )
