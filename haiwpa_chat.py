@@ -3,11 +3,12 @@ HAIWPA Chat Application
 A Gradio-based chat interface for interacting with the HAIWPA backend.
 It uses the HAIWPABackend class to handle chat functionality with the `chat_with_history` function.
 
-Source : 
+Source :
 - https://www.gradio.app/guides/creating-a-chatbot-fast
 
 Assistant : Claude
 """
+
 import gradio as gr
 from haiwpa_backend import HAIWPABackend
 import config
@@ -15,8 +16,8 @@ import config
 backend = HAIWPABackend()
 
 
-def chat_function(user_input, history):
-    return backend.chat_with_history(user_input, history)
+async def chat_function(user_input, history):
+    return await backend.chat_with_history(user_input, history)
 
 
 def create_interface():
