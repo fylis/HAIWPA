@@ -14,6 +14,9 @@ Assistant : Claude
 
 from openai import OpenAI
 from haiwpa_workout import MultipleFitnessExtract
+from haiwpa_mcp import format_suggested_workout
+from fastmcp import Client
+import json
 import config
 import instructor
 
@@ -32,6 +35,7 @@ class HAIWPABackend:
         self.model_name = config.MODEL_ALIAS_1
         self.temperature = config.TEMPERATURE_1
         self.max_tokens = config.MAX_TOKEN
+        self.mcp_client = Client(f"{config.MCP_SERVER_URL}/mcp")
 
     # Wait for a response from the model after the prompt is sent
     # This function is based on https://github.com/abetlen/llama-cpp-python/blob/main/examples/notebooks/Functions.ipynb
@@ -80,28 +84,6 @@ class HAIWPABackend:
             print(f"\nError: {e}")
             return None
 
-    # Adds the user/bot message history to the current message and gets a response
-    def chat_with_history(self, current_message, history):
-        # Printing fitness extraction informations from user prompts only if the message is related to fitness
-        if self.is_fitness_related(current_message):
-            print("Starting the extraction process...")
-            fitness_sessions = self.extract_fitness_info(current_message)
-            if fitness_sessions:
-                for session in fitness_sessions:
-                    session.print_extracted_info()
-                    session.save_to_json(current_message)
-
-        # Converting Gradio history format to messages format before sending to the LLM
-        messages = []
-        if history:
-            for msg in history:
-                converted_message = self.gradio_to_messages(msg)
-                if converted_message:
-                    messages.append(converted_message)
-        messages.append({"role": "user", "content": current_message})
-
-        return self.chat(messages)
-
     # Converting Gradio response format to messages format
     # Gradio's chat interface contains more informations in content like the `type` and the actual `text` when OpenAI API format contains only a string in `content`.
     def gradio_to_messages(self, message):
@@ -119,3 +101,83 @@ class HAIWPABackend:
                 return {"role": role, "content": text}  # Return in OpenAI API format
 
         return None
+
+    def convert_validation_to_message(self, validation_results: str):
+        res = "WORKOUT VALIDATION : \n"
+        res += "RULE : \n"
+        res += "At the beginning always write PROLOG VALIDATION with a YES (if approved=True) or NO (if approved=False) answer.\n and then give explanations based on the following validation results : \n "
+
+        if not validation_results:
+            return None
+
+        for r in validation_results:
+            muscle = r.get("muscle")
+            date = r.get("date")
+
+            validation = r.get("validation", {})
+            approved = validation.get("approved")
+            reason = validation.get("reason")
+
+            if approved:
+                res += f"- {muscle} on {date} : Approved - {reason}\n"
+            else:
+                alternatives = validation.get("alternatives", [])
+                res += f"- {muscle} on {date}: Not approved - {reason}\n"
+                if alternatives:
+                    alt = format_suggested_workout(alternatives)
+                    res += f"  Suggested alternatives: {alt}\n"
+
+        return res + "Use those validation informations to answer."
+
+    async def validate_workout_mcp(self, file_path: str = config.CONTEXT_FILE):
+        try:
+            async with self.mcp_client:
+                result = await self.mcp_client.call_tool(
+                    "validate_all_planned_workouts"
+                )
+
+                # Check if there is a result and returns the content from it because MCP returns a JSON format answer
+                if result and result.content:
+                    return json.loads(result.content[0].text)
+
+                return result
+        except Exception as e:
+            print(e)
+            return None
+
+    # Adds the user/bot message history to the current message and gets a response
+    async def chat_with_history(self, current_message, history):
+        # Used to store Prolog validation if there is any
+        validation_context = ""
+
+        # Printing fitness extraction informations from user prompts only if the message is related to fitness
+        if self.is_fitness_related(current_message):
+            print("Starting the extraction process...")
+            fitness_sessions = self.extract_fitness_info(current_message)
+            if fitness_sessions:
+                for session in fitness_sessions:
+                    session.print_extracted_info()
+                    session.save_to_json(current_message)
+
+                validation_results = await self.validate_workout_mcp()
+                if validation_results:
+                    validation_context = self.convert_validation_to_message(
+                        validation_results
+                    )
+
+        # Converting Gradio history format to messages format before sending to the LLM
+        messages = []
+        if history:
+            for msg in history:
+                converted_message = self.gradio_to_messages(msg)
+                if converted_message:
+                    messages.append(converted_message)
+
+        # role system used to add rules on how the LLM should answer
+        if validation_context:
+            messages.append({"role": "system", "content": validation_context})
+            print(validation_context)
+
+        messages.append({"role": "user", "content": current_message})
+
+        return self.chat(messages)
