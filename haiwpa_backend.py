@@ -117,15 +117,19 @@ class HAIWPABackend:
             validation = r.get("validation", {})
             approved = validation.get("approved")
             reason = validation.get("reason")
+            max_rest_days = r.get("max_rest_days")
 
             if approved:
-                res += f"- {muscle} on {date} : Approved - {reason}\n"
+                res += f"- {muscle} on {date} : approved=True - {reason}\n"
             else:
                 alternatives = validation.get("alternatives", [])
-                res += f"- {muscle} on {date}: Not approved - {reason}\n"
+                res += f"- {muscle} on {date}: approved=False - {reason}\n"
                 if alternatives:
                     alt = format_suggested_workout(alternatives)
                     res += f"  Suggested alternatives: {alt}\n"
+
+                # Getting the max rest days
+                res += f"Use this max rest days value : {max_rest_days} which is in days for the recent workout history. \n"
 
         return res + "Use those validation informations to answer."
 
@@ -142,7 +146,7 @@ class HAIWPABackend:
 
                 return result
         except Exception as e:
-            print(e)
+            # print(e)
             return None
 
     # Adds the user/bot message history to the current message and gets a response
@@ -176,8 +180,8 @@ class HAIWPABackend:
         # role system used to add rules on how the LLM should answer
         if validation_context:
             messages.append({"role": "system", "content": validation_context})
-            print(validation_context)
+            print("Validation context \n", validation_context, "\n")
 
         messages.append({"role": "user", "content": current_message})
-
+        print("Message sent to LLM", messages)
         return self.chat(messages)
