@@ -144,7 +144,7 @@ max_day_required(MaxRestDays):-
 
 % ====================================
 % Date calculation
-% The difference bewteen two dates is calculates in seconds
+% The difference bewteen two dates is calculated in seconds
 % ====================================
 
 % Calculating the difference between two dates in days
@@ -187,11 +187,10 @@ trained_together_has_injury(Muscle, CurrentDate, InjuredMuscle):-
 % Check if an exercise can be performed on a given date
 
 % 1. Check if injured
-% ! is used to stop backtracking
 can_workout(Muscle, Date, 'injury_present'):-
     has_injury(Muscle, Date).
 
-% 2. Check if a muscle trained together with the target is injured
+% 2. Check if a muscle trained together with the target muscle is injured
 % the ! to stop backtracking after the first try
 can_workout(Muscle, Date, 'trained_together_injured'):-
     trained_together_has_injury(Muscle, Date, _), !.
