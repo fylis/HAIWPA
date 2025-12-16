@@ -1,8 +1,12 @@
 """
 HAIWPA Backend
-It uses a OpenAI client to interact with the HAIWPA model server.
-This module defines the HAIWPABackend class, which provides methods to send prompts
-to the model and receive responses, including handling message history.
+
+Project backend module with :
+- OpenAI client for LLM chat completions (Llama.cpp server)
+- Instructor client for structured JSON extraction (Pydantic models)
+- FastMCP client for Prolog validation via MCP tool calls
+- Gradio message format conversion
+- Validation context building for LLM prompts
 
 Source :
 - https://github.com/abetlen/llama-cpp-python/blob/main/examples/notebooks/Functions.ipynb
@@ -102,17 +106,14 @@ class HAIWPABackend:
 
         return None
 
+    # Convert Prolog validation results to a message format for LLM context
     def convert_validation_to_message(self, validation_results: str):
-        res = "WORKOUT VALIDATION : \n"
-        res += "RULE : \n"
-        res += "Always prioritize Prolog answers for workout, injuries, and rest days validation. \n"
-        res += "At the beginning always write PROLOG VALIDATION : True or false from prolog_validation and then only apply those two rules : \n "
-        res += "1. Do NOT make up additional medical advice if prolog_validation=True, but answers the users based on the Prolog validation. \n"
-        res += "2. If prolog_validation=False, use `reason` to make your answer but only based on the `reason` field from Prolog. \n"
+        res = config.LLM_CONTEXT_FOR_ANSWER
 
         if not validation_results:
             return None
 
+        # Parsing the validation results
         for r in validation_results:
             muscle = r.get("muscle")
             date = r.get("date")
@@ -136,6 +137,7 @@ class HAIWPABackend:
 
         return res #+ "Use those validation informations to answer."
 
+    # MCP client call to validate all planned workouts
     async def validate_workout_mcp(self, file_path: str = config.CONTEXT_FILE):
         try:
             async with self.mcp_client:
@@ -149,7 +151,6 @@ class HAIWPABackend:
 
                 return result
         except Exception as e:
-            # print(e)
             return None
 
     # Adds the user/bot message history to the current message and gets a response
@@ -185,6 +186,7 @@ class HAIWPABackend:
             messages.append({"role": "system", "content": validation_context})
             print("Validation context \n", validation_context, "\n")
 
+        # messages contains the validation_context as well as the user message
         messages.append({"role": "user", "content": current_message})
         print("Message sent to LLM", messages)
         return self.chat(messages)
