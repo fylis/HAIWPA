@@ -9,5 +9,7 @@ dependencies = [
     "gradio>=6.1.0",
     "instructor>=1.13.0",
     "openai>=2.8.1",
-    "pyswip>=0.3.3"
+    "pyswip>=0.3.3",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
 ]
