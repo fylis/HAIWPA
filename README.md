@@ -13,15 +13,15 @@ The core objective is to demonstrate a hybrid AI approach that combines symbolic
 - [Architecture](#architecture)
 - [Requirements](#requirements)
 - [How to use | User guide](#how-to-use--user-guide)
+- [Examples](#examples)
 - [Developer guide](#developer-guide)
     - [Code structure](#code-structure)
-    - [General workflow](#general-workflow)
     - [config.py](#configpy)
     - [haiwpa_backend.py](#haiwpa_backendpy)
     - [haiwpa_chat.py](#haiwpa_chatpy)
     - [haiwpa_mcp.py](#haiwpa_mcppy)
     - [haiwpa_workout.py](#haiwpa_workoutpy)
-    - [workout_rules](#workout_rulespl)
+    - [workout_rules.pl](#workout_rulespl)
     - [Unit tests](#unit-tests)
 - [Future upgrades](#future-upgrades)
 - [Conclusion](#conclusion)
@@ -92,8 +92,19 @@ uv run haiwpa_chat.py
 
 ![!Gradio interface](images/gradio_interface.png)
 
+## Examples
+Here are some examples of the HAIWPA application.
+
+[videos/compressed_example_no_fitness_with_history.mp4](videos/compressed_example_no_fitness_with_history.mp4)
+
+[videos/compressed_injured_trained_together_muscle.mp4](videos/compressed_injured_trained_together_muscle.mp4)
+
+[videos/compressed_insufficent_rest_same_muscle.mp4](videos/compressed_insufficent_rest_same_muscle.mp4)
+
+[videos/compressed_trained_together_muscles_approved.mp4](videos/compressed_trained_together_muscles_approved.mp4)
+
 ## Developer guide
-This section is for developpers that would be interested to update or modify the actual project.
+This section is for developers that would be interested to update or modify the actual project.
 
 **Steps :**
 
@@ -104,20 +115,30 @@ This section is for developpers that would be interested to update or modify the
 ### Code structure
 Here is a short description for each folder/file that can be found after the repository clone.
 ```bash
-├── data/                   # Folder containing workout history
-├──── context.json          # Workout history and future workout(s)
-├── images/                 # Folder containing images for the README.md
-├── config.py               # Constants file
-├── haiwpa_backend.py       # Backend module
-├── haiwpa_chat.py          # Gradio web interface module
-├── haiwpa_mcp.py           # MCP Server used to interact with SWI-Prolog
-├── haiwpa_workout.py       # Workout extraction to `context.json` file
-├── pyproject.toml          # Project configuration file
-├── README.md               # Project overview, user guide, developper guide, etc.
-└── workout_rules.pl        # SWI-Prolog predicates
+├── data/                           # Folder containing workout history
+├──────── context.json
+├── images/                         # Folder containing images for the README.md
+├── test_data/                      # Folder containg JSON data for validation
+├──────────── approved_workout.json
+├──────── injury_present.json
+├──────── insufficient_rest.json
+├──────── trained_together_injury.json
+├── tests/                          # Folder containg unit and system tests
+├──────── test_backend_mcp.py
+├──────── test_mcp_helpers.py
+├──────── test_mcp_integration.py
+├──────── test_prolog_rules.py
+├──────── test_workout_extraction.py
+├── videos/                         # Example videos of the application
+├── config.py                       # Constants file
+├── haiwpa_backend.py               # Backend module
+├── haiwpa_chat.py                  # Gradio web interface module
+├── haiwpa_mcp.py                   # MCP Server used to interact with SWI-Prolog
+├── haiwpa_workout.py               # Workout extraction to `context.json` file
+├── pyproject.toml                  # Project configuration file
+├── README.md                       # Project overview, user guide, developer guide, etc.
+└── workout_rules.pl                # SWI-Prolog predicates
 ```
-
-### General workflow
 
 ### config.py
 This file contains constants used along all modules.
@@ -132,6 +153,187 @@ LLM_CONTEXT_FOR_ANSWER =  "WORKOUT VALIDATION :\n" + ...
 ```
 
 ### haiwpa_backend.py
+This module is the central orchestration layer that connects Gradio, the LLM, and the MCP server. It handles message processing, fitness extraction, and validation context building.
+
+It uses the `openai` library to interact with the Llama.cpp server, the `instructor` library for structured JSON extraction, and the `fastmcp` library for MCP client calls.
+
+The `HAIWPABackend` class initializes three clients :
+```python
+class HAIWPABackend:
+    def __init__(self):
+        # OpenAI client for chat completions
+        self.client = OpenAI(
+            base_url=f"{config.LLM_SERVER_1_URL}/v1", api_key=config.API_KEY
+        )
+
+        # Instructor client for structured JSON extraction
+        self.instructor_client = instructor.from_openai(
+            OpenAI(base_url=f"{config.LLM_SERVER_1_URL}/v1", api_key=config.API_KEY),
+            mode=instructor.Mode.JSON,
+        )
+
+        # MCP client for Prolog validation
+        self.mcp_client = Client(f"{config.MCP_SERVER_URL}/mcp")
+        ...
+```
+
+These clients connect to different services running on separate ports.
+
+The `chat()` method sends a messages array to the LLM and returns the response :
+```python
+def chat(self, messages):
+    try:
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error: {str(e)}"
+```
+
+The `is_fitness_related()` function checks if the user message contains any fitness keyword from `config.FITNESS_KEYWORDS`. This list can be updated if needed. 
+
+This determines whether to trigger the extraction process :
+```python
+def is_fitness_related(self, message: str) -> bool:
+    fitness_keywords = config.FITNESS_KEYWORDS
+    message_lower = message.lower()
+    return any(keyword in message_lower for keyword in fitness_keywords)
+```
+The `extract_fitness_info()` method uses the Instructor client to extract structured data from natural language.
+
+It tries with a maximum number of three retries.
+
+The temperature for this prompt is lower $(0.3)$, because we want less randomness in the answer compared to the normal LLM conversation as it was in `init()` method.
+
+It returns a list of `FitnessExtract` sessions or `None` on failure :
+```python
+def extract_fitness_info(self, user_input):
+    try:
+        response = self.instructor_client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Extract fitness information from the following input:\n{user_input} using a JSON format",
+                }
+            ],
+            response_model=MultipleFitnessExtract,
+            temperature=config.TEMPERATURE_2,
+            max_retries=3,
+        )
+        if response and hasattr(response, "sessions"):
+            return response.sessions
+        return None
+    except Exception as e:
+        ...
+```
+
+The `gradio_to_messages()` method converts Gradio's message format to OpenAI API format.
+
+Gradio uses `{role, content: [{type, text}]}` while OpenAI expects `{role, content: str}` :
+```python
+def gradio_to_messages(self, message):
+    role = message.get("role")
+    content = message.get("content")
+
+    # Content is already a string (OpenAI API format)
+    if isinstance(content, str):
+        return {"role": role, "content": content}
+
+    # Content is a list (Gradio format)
+    if isinstance(content, list):
+        if len(content) > 0 and isinstance(content[0], dict):
+            text = content[0].get("text", "")
+            return {"role": role, "content": text}
+
+    return None
+```
+The use of this method ensures that the communication is correct between Gradio web interface and the Llama.cpp LLM. At the beginning of the project, we decided with the professor, that we will focus only on string type of messages without images, etc.
+
+Then, `convert_validation_to_message()` method transforms MCP validation results into a system prompt for the LLM.
+
+It includes the Prolog validation status, reason, and instructions on how the LLM should respond :
+```python
+def convert_validation_to_message(self, validation_results: str):
+    res = config.LLM_CONTEXT_FOR_ANSWER
+
+    if not validation_results:
+        return None
+
+    for r in validation_results:
+        muscle = r.get("muscle")
+        ...
+        max_rest_days = r.get("max_rest_days")
+
+        if approved:
+            res += f"- {muscle} on {date} : prolog_validation=True - prolog_reason={reason}\n"
+        else:
+            res += f"- {muscle} on {date}: prolog_validation=False - prolog_reason={reason}\n"
+            res += f"Use this max rest days value : {max_rest_days} which is in days for the recent workout history. \n"
+
+    return res
+```
+
+This method will be used with `validate_workout_mcp()` function in the main orchestration function which is `chat_with_history()`.
+
+The `validate_workout_mcp()` is an async function that calls the MCP server's `validate_all_planned_workouts` tool and returns the parsed JSON results :
+```python
+async def validate_workout_mcp(self, file_path: str = config.CONTEXT_FILE):
+    try:
+        async with self.mcp_client:
+            result = await self.mcp_client.call_tool(
+                "validate_all_planned_workouts"
+            )
+
+            if result and result.content:
+                return json.loads(result.content[0].text)
+
+            return result
+    except Exception as e:
+        return None
+```
+
+Finally, we have `chat_with_history()` which is the main orchestration function that handles the complete workflow :
+
+Check if fitness-related → extract data → save to JSON → validate via Prolog through MCP → build context → send to LLM :
+```python
+async def chat_with_history(self, current_message, history):
+    validation_context = ""
+
+    # Only process fitness-related messages
+    if self.is_fitness_related(current_message):
+        ...
+        fitness_sessions = self.extract_fitness_info(current_message)
+        if fitness_sessions:
+            for session in fitness_sessions:
+                # extracting and saving to a .json file
+            
+            # Validate via MCP/Prolog
+            validation_results = await self.validate_workout_mcp()
+            if validation_results:
+                validation_context = self.convert_validation_to_message(validation_results)
+
+    # Convert Gradio history to OpenAI format
+    messages = []
+    if history:
+        for msg in history:
+            converted_message = self.gradio_to_messages(msg)
+            if converted_message:
+                messages.append(converted_message)
+
+    # Add validation context as system message/prompt
+    if validation_context:
+        messages.append({"role": "system", "content": validation_context})
+
+    # Add current user message and send to LLM
+    messages.append({"role": "user", "content": current_message})
+    return self.chat(messages)
+```
+All these methods enable the user to interact with Llama.cpp through the Gradio web interface. Fitness-related messages trigger the full validation pipeline (workout extraction, MCP, Prolog reasoning), while all messages use conversation history to maintain context.
 
 ### haiwpa_chat.py
 This module uses the `gradio` library, the `HAIWPABackend` class from `haiwpa_backend.py`, and the `config` module.
@@ -159,7 +361,7 @@ def create_interface():
 ### haiwpa_workout.py
 This module uses Pydantic's `BaseModel` and `Field` as main components to extract information from the user's natural language prompt.
 
-When the system detects a fitness-related message (via the backend's `is_fitness_related()` function), it calls the Llama.cpp server to extract the following fields:
+When the system detects a fitness-related message (via the backend's `is_fitness_related()` function), it calls the Llama.cpp server to extract the following fields :
 
 ```python
 # Class to extract fitness exercises, duration limits, recent training history, injuries from user input
@@ -469,20 +671,90 @@ Unit tests are there to check if all blocks of the pipeline works as expected.
 
 It is good to launch the unit tests before the launching the actual project, but as well if a developer want to test their modified function, update, etc. 
 
-#### Extraction tests
+> **Note :** This tests were generated by Claude AI based on the repository code.
 
-#### MCP-Prolog tests
+1. **Workout extraction**
+    ```bash
+    uv run pytest tests/test_workout_extraction.py -v
+    ```
 
-#### Backend-MCP tests
+    What is tested :
+    - `today_date()`                    : Format validation, datetime matching
+    - `FitnessExtract`                  : Model creation, JSON serialization, `save_to_json()`
+    - `MultipleFitnessExtract`          : Multiple sessions, empty lists
+
+2. **Prolog rules**
+    ```bash
+    uv run pytest tests/test_prolog_rules.py -v
+    ```
+
+    What is tested :
+    - `connection_test/0`               : Prolog connection
+    - `muscle_group/1`                  : Valid/Invalid muscle groups
+    - `rest_day_requried/2`             : 1/2 day(s) rest requirements
+    - `injury_recovery_days/2`          : 14/21/28 days recovery periods
+    - `trained_together/2`              : Synergistic muscle relationships
+    - `exercise/2`                      : Exercise to muscle mapping
+    - `can_workout/3`                   : Testing all 4 validation cases
+    - `suggest_alternative/3`           : Alternative muscles suggestions
+    - `has_injury/2`                    : Injury detection with dates
+    - `sufficient_rest/3`               : Rest period validation
+    - `days_between/3`                  : Date arithmetic
+
+3. **MCP helpers**
+    ```bash
+    uv run pytest tests/test_mcp_helpers.py -v
+    ```
+
+    What is tested :
+    - `convert_date_to_timestamp()`     : ISO and European date formats
+    - `format_suggested_workout()`      : String formatting, edge cases
+    - `validate_single_workout()`       : Return structure, invalid muscles
+
+    > For the test 4 and 5, you will need to start the MCP server as it shown in the [How to use | User guide](#how-to-use--user-guide) section.
+    ```bash
+    uv run fastmcp run haiwpa_mcp.py --transport http --port 9000
+    ```
+
+4. **MCP server**
+    ```bash
+    uv run pytest tests/test_mcp_integration.py -v
+    ```
+
+    What is tested :
+    - `MCP Connection`                  : Server reachability, tool availability
+
+5. **Backend <-> MCP**
+    ```bash
+    uv run pytest tests/test_backend_mcp.py -v
+    ```
+
+    What is tested :
+    - `is_fitness_related()`            : Keyword detection
+    - `gradio_to_messages()`            : Format conversion
+    - `convert_validation_to_message()` : MCP call structure
+
 
 ## Future upgrades
-For future upgrades, I would like to implement the following improvements:
+For future upgrades, I would like to implement the following improvements :
 - More realistic Prolog rules, enabling better reasoning based on real-world information rather than synthetic data.
 - Additional MCP tools for interacting with the SWI-Prolog knowledge base, such as simple queries to retrieve all exercises targeting a specific muscle group (e.g., biceps), the minimum required rest days, and similar information.
-- An improved mechanism for saving context.json and updating workout statuses from “planned” to “completed” automatically after a certain time. Currently, the file must be cleared for the system to function properly, as it stores all fitness-related information extracted from user prompts that could be falsified.
+- An improved mechanism for saving context.json and updating workout statuses from "planned" to "completed" automatically after a certain time. Currently, the file must be cleared for the system to function properly, as it stores all fitness-related information extracted from user prompts that could be falsified.
 - A more robust method for extracting dates and times from user prompts. At present, when a user provides a date, the time is ignored. This can lead to inconsistencies, for example when a workout completed at 23:59 is considered valid again at midnight, since only the day (ISO format) is being checked and not the full timestamp.
+- A way of saving the chat history as well as managing the actual chat history which becomes large quickly. This could be done by saving just a certain number of the last messages in the history.
+- Add a check so that if there is no planned workout, it does not call the MCP, SWI-Prolog, etc.
+- Play with the temperature for the LLM answer after getting the approval and reasoning from SWI-Prolog. Sometimes, even after the correct Prolog reasoning is sent to the LLM, it changes the approval. For that, I thought of using a lower temperature instead of the $0.7$ that is used for chat with history.
 
 ## Conclusion
+To conclude, during these four weeks, I have learned a lot of new knowledge such as running a local LLM with the difference between running on a CPU vs a GPU, as well as the Gradio web interface which is a great tool to use if we want a simple interface. Also, the MCP server that is commonly used right now with ChatGPT, Claude, Ollama, Llama.cpp, etc.
+
+But one part of this whole pipeline was really frustrating: the data extraction. It is difficult to extract information with such a small LLM model, which has only 3B parameters, but I achieved what I wanted, with of course some difficulties.
+
+This project has really shown me that working with LLMs is not an easy task, as the LLM really likes to use its pre-trained reasoning.
+
+But in this specific scenario, I achieved the main goal which was to use symbolic AI with SWI-Prolog basic predicates, rules, etc. to change the reasoning of the LLM (in most cases).
+
+In the end, I'm happy with my result, but it could of course be upgraded if there was more time for the project!
 
 ## Acknowledgements
 For the proper monitoring of the project, the instructions provided, and for answering all questions related to the project, whether concerning progress or code, I would like to thank **Davide Calvaresi** and **Elia Pacioni**. I would also like to thank them for providing access to a computational server and for all the intermediate meetings and suggestions, which were very helpful throughout the project.
@@ -499,3 +771,6 @@ For the proper monitoring of the project, the instructions provided, and for ans
 - [SWI-Prolog : Predicate max_list/2](https://www.swi-prolog.org/pldoc/man?predicate=max_list/2)
 - Claude AI was used for error analyzing, debugging and suggesting code updates.
 - ChatGPT was used to create the **llama doing a bench press** image used in the banner, as well as for orthography and grammar corrections.
+
+## Author
+Filip Siliwoniuk, Informatique et systèmes de communication - HES-SO Valais-Wallis
