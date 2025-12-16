@@ -13,7 +13,20 @@ The core objective is to demonstrate a hybrid AI approach that combines symbolic
 - [Architecture](#architecture)
 - [Requirements](#requirements)
 - [How to use | User guide](#how-to-use--user-guide)
-- [Documentation](#documentation)
+- [Developer guide](#developer-guide)
+    - [Code structure](#code-structure)
+    - [General workflow](#general-workflow)
+    - [config.py](#configpy)
+    - [haiwpa_backend.py](#haiwpa_backendpy)
+    - [haiwpa_chat.py](#haiwpa_chatpy)
+    - [haiwpa_mcp.py](#haiwpa_mcppy)
+    - [haiwpa_workout.py](#haiwpa_workoutpy)
+    - [workout_rules](#workout_rulespl)
+    - [Unit tests](#unit-tests)
+- [Future upgrades](#future-upgrades)
+- [Conclusion](#conclusion)
+- [Acknowledgements](#acknowledgements)
+- [Sources](#sources)
 
 ## Architecture
 The architecture of this project is composed with :
@@ -79,8 +92,14 @@ uv run haiwpa_chat.py
 
 ![!Gradio interface](images/gradio_interface.png)
 
-## Developper guide
+## Developer guide
 This section is for developpers that would be interested to update or modify the actual project.
+
+**Steps :**
+
+1. Fork the repository.
+2. Pass the tests from [Unit tests](#unit-tests)
+3. Make a pull request.
 
 ### Code structure
 Here is a short description for each folder/file that can be found after the repository clone.
@@ -98,7 +117,7 @@ Here is a short description for each folder/file that can be found after the rep
 └── workout_rules.pl        # SWI-Prolog predicates
 ```
 
-### Workflow
+### General workflow
 
 ### config.py
 This file contains constants used along all modules.
@@ -316,9 +335,145 @@ There are also two helper functions:
 - `format_suggested_workout()` - Formats the list of alternatives into a comma-separated string.
 
 ### workout_rules.pl
-This Prolog file contains all the symbolic AI part with predicats, etc.
+This file contains the SWI-Prolog knowledge base with workout validation rules, muscle data, and constraint logic. This is the symbolic AI component that returns decisions with the reasoning.
+
+It uses SWI-Prolog predicates like `findall/3` to collect results into lists and `max_list/2` to find maximum values.
+
+It starts with facts that define exercises, muscle groups, required rest day(s), injury recovery per muscle group as well as relations between muscle groups that could be trained together.
+```prolog
+% Exercises mapped to muscle groups
+exercise('bench press', chest).
+exercise('curls', biceps).
+...
+
+% Valid muscle groups
+muscle_group(chest).
+muscle_group(biceps).
+...
+
+% Rest days required per muscle (1-2 days)
+rest_day_required(biceps, 1).
+rest_day_required(chest, 2).
+...
+
+% Injury recovery time per muscle (14-28 days)
+injury_recovery_days(biceps, 14).
+injury_recovery_days(chest, 28).
+...
+
+% Synergistic muscles (often trained together)
+trained_together(chest, triceps).
+trained_together(back, biceps).
+...
+```
+
+Then, we have dynamic facts that are asserted at runtime from the JSON context file via the MCP server :
+```prolog
+:- dynamic workout_history/4.  % workout_history(Date, Muscle, Exercise, Duration)
+:- dynamic injury/2.           % injury(Date, Muscle)
+```
+
+To check if the user has a correct rest time, there is the `days_between()` predicate that receives two UNIX timestamps and as output has the number of `Days`.
+```prolog
+days_between(Date1, Date2, Days):-
+    Days is round((Date2 - Date1) / (24 * 60 * 60)).
+```
+
+These predicates check specific conditions for workout validation :
+
+- `recently_trained/2` - Returns true if a muscle was trained within its required rest period :
+```prolog
+recently_trained(Muscle, Date):-
+    workout_history(WorkoutDate, Muscle, _, _),
+    days_between(WorkoutDate, Date, Days),
+    rest_day_required(Muscle, RequiredRestDays),
+    Days < RequiredRestDays.
+```
+- `has_injury/2` - Returns true if a muscle has an active injury (within recovery period) :
+```prolog
+has_injury(Muscle, CurrentDate):-
+    injury(InjuryDate, Muscle),
+    injury_recovery_days(Muscle, RecoveryDays),
+    days_between(InjuryDate, CurrentDate, DaysSinceInjury),
+    DaysSinceInjury < RecoveryDays.
+```
+- `trained_together_has_injury/3` - Returns true if a synergistic muscle is injured, and identifies which one :
+```prolog
+trained_together_has_injury(Muscle, CurrentDate, InjuredMuscle):-
+    (trained_together(Muscle, InjuredMuscle); trained_together(InjuredMuscle, Muscle)),
+    has_injury(InjuredMuscle, CurrentDate).
+```
+
+The main validation rule is `can_workout/3`. It checks conditions in priority order and returns a reason :
+```prolog
+% 1. Check if injured
+can_workout(Muscle, Date, 'injury_present'):-
+    has_injury(Muscle, Date).
+
+% 2. Check if a muscle trained together with the target muscle is injured
+% the ! to stop backtracking after the first try
+can_workout(Muscle, Date, 'trained_together_injured'):-
+    trained_together_has_injury(Muscle, Date, _), !.
+
+% 3. Check if recently trained
+can_workout(Muscle, Date, 'insufficient_rest'):-
+    recently_trained(Muscle, Date).
+
+% 4. Returning true if both checks are passed
+% \+ for negation
+can_workout(Muscle, Date, 'workout_allowed'):-
+    \+ has_injury(Muscle, Date),
+    \+ trained_together_has_injury(Muscle, Date, _),
+    \+ recently_trained(Muscle, Date).
+```
+
+The `!` (cut) operator stops backtracking after finding a match, ensuring only one reason is returned. The `\+` operator is negation (returns true if the predicate fails).
+
+When a workout is not allowed, these predicates suggest safe alternatives :
+
+- `alternative_muscle/2` - Finds muscles that are not synergistically related to the target :
+```prolog
+alternative_muscle(Muscle, AlternativeMuscle):-
+    muscle_group(AlternativeMuscle),
+    AlternativeMuscle \= Muscle,
+    \+ trained_together(Muscle, AlternativeMuscle).
+```
+
+- `suggest_alternative/3` - Suggests muscles that can be safely trained instead :
+```prolog
+% If can_workout is not allowed, then it proposes other muscle groups
+% once because if all are true, it was suggesting muscles for each validation.
+suggest_alternative(Muscle, Date, AlternativeMuscle):-
+    once((has_injury(Muscle, Date); trained_together_has_injury(Muscle, Date, _); recently_trained(Muscle, Date))),
+    alternative_muscle(Muscle, AlternativeMuscle),
+    can_workout(AlternativeMuscle, Date, 'workout_allowed').
+```
+
+The `once/1` predicate ensures the condition check runs only once, avoiding duplicate suggestions.
+
+Finally, `suggested_rest_days/1` returns the maximum rest days from the current workout history. It uses `findall/3` to collect all rest requirements and `max_list/2` to find the maximum :
+```prolog
+suggested_rest_days(MaxRestDays):-
+    max_day_required(MaxRestDays).
+
+max_day_required(MaxRestDays):-
+    workout_rest_days(RestDays),
+    max_list(RestDays, MaxRestDays).
+
+workout_rest_days(RestDays):-
+    findall(RestDay, (workout_history(_, Muscle, _, _), rest_day_required(Muscle, RestDay)), RestDays).
+```
 
 ### Unit tests
+Unit tests are there to check if all blocks of the pipeline works as expected.
+
+It is good to launch the unit tests before the launching the actual project, but as well if a developer want to test their modified function, update, etc. 
+
+#### Extraction tests
+
+#### MCP-Prolog tests
+
+#### Backend-MCP tests
 
 ## Future upgrades
 For future upgrades, I would like to implement the following improvements:
@@ -343,4 +498,4 @@ For the proper monitoring of the project, the instructions provided, and for ans
 - [SWI-Prolog : Predicate findall/3](https://www.swi-prolog.org/pldoc/man?predicate=findall/3)
 - [SWI-Prolog : Predicate max_list/2](https://www.swi-prolog.org/pldoc/man?predicate=max_list/2)
 - Claude AI was used for error analyzing, debugging and suggesting code updates.
-- ChatGPT was used to create the **lama doing bench press** image which is used in the banner.
+- ChatGPT was used to create the **llama doing a bench press** image used in the banner, as well as for orthography and grammar corrections.
