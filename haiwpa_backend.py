@@ -105,7 +105,10 @@ class HAIWPABackend:
     def convert_validation_to_message(self, validation_results: str):
         res = "WORKOUT VALIDATION : \n"
         res += "RULE : \n"
-        res += "At the beginning always write PROLOG VALIDATION with a YES (if approved=True) or NO (if approved=False) answer.\n and then give explanations based on the following validation results : \n "
+        res += "Always prioritize Prolog answers for workout, injuries, and rest days validation. \n"
+        res += "At the beginning always write PROLOG VALIDATION : True or false from prolog_validation and then only apply those two rules : \n "
+        res += "1. Do NOT make up additional medical advice if prolog_validation=True, but answers the users based on the Prolog validation. \n"
+        res += "2. If prolog_validation=False, use `reason` to make your answer but only based on the `reason` field from Prolog. \n"
 
         if not validation_results:
             return None
@@ -120,10 +123,10 @@ class HAIWPABackend:
             max_rest_days = r.get("max_rest_days")
 
             if approved:
-                res += f"- {muscle} on {date} : approved=True - {reason}\n"
+                res += f"- {muscle} on {date} : prolog_validation=True - prolog_reason={reason}\n"
             else:
                 alternatives = validation.get("alternatives", [])
-                res += f"- {muscle} on {date}: approved=False - {reason}\n"
+                res += f"- {muscle} on {date}: prolog_validation=False - prolog_reason={reason}\n"
                 if alternatives:
                     alt = format_suggested_workout(alternatives)
                     res += f"  Suggested alternatives: {alt}\n"
@@ -131,7 +134,7 @@ class HAIWPABackend:
                 # Getting the max rest days
                 res += f"Use this max rest days value : {max_rest_days} which is in days for the recent workout history. \n"
 
-        return res + "Use those validation informations to answer."
+        return res #+ "Use those validation informations to answer."
 
     async def validate_workout_mcp(self, file_path: str = config.CONTEXT_FILE):
         try:
