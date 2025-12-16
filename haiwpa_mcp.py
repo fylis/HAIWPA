@@ -31,6 +31,10 @@ list(prolog.query("connection_test."))
 
 # Used to convert a US date to UNIX timestamp
 def convert_date_to_timestamp(date_str: str):
+    # if date_str looks like "DD.MM.YYYY", convert it to the format "YYYY-MM-DD"
+    if "." in date_str:
+        day, month, year = date_str.split(".")
+        date_str = f"{year}-{month}-{day}"
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     return int(dt.timestamp())  # Convert to UNIX timestamp
 
