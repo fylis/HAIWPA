@@ -1,14 +1,15 @@
 """
-HAIWPA MCP Sever
+HAIWPA MCP Server
+
 This FastMCP server is designed to load data from JSON files and send it to a SWI-Prolog engine.
-After processing, it returns the results back to the client.
+`validate_all_planned_workouts` MCP tool is used to validate planned workouts and getting approbations/suggestions/alternatives.
 
 Source :
 - https://gofastmcp.com/getting-started/quickstart
 - https://www.youtube.com/watch?v=aiH79Q-LGjY
 
 
-Assistant: Claude and Copilot
+Assistant : Claude
 """
 
 from fastmcp import FastMCP
@@ -25,7 +26,7 @@ prolog = Prolog()
 # Load Prolog knowledge base
 prolog.consult("workout_rules.pl")
 
-# Unit test to check if the connexion worked
+# Unit test to check if the connexion with Prolog worked
 list(prolog.query("connection_test."))
 
 
@@ -38,12 +39,13 @@ def convert_date_to_timestamp(date_str: str):
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     return int(dt.timestamp())  # Convert to UNIX timestamp
 
-
-# Used to have a formatted string from the muscle group alternative list
+# This function was used to format suggested workout alernatives (muscle groups) from Prolog query
+# Used to have a formatted string for the LLM answer
 def format_suggested_workout(suggested_workout):
     res = ""
     for r in suggested_workout:
         res += r["AlternativeMuscle"] + ", "
+    # Used to delete the last comma and space
     res = res[:-2]
     return res
 
@@ -176,11 +178,12 @@ def validate_single_workout(muscle: str, date: str):
                 "reason": f"Insufficient rest on the muscle group. Suggested alternatives : {suggested_workout_res}",
             }
 
-    # Check if workout is allowed
+    # Default return
     return {"approved": False, "reason": "Unknown reason"}
 
 
 # MCP Tool to validate all planned workouts from the JSON context file
+# It returns a list of validation results for each planned workout
 @mcp.tool()
 def validate_all_planned_workouts():
     planned_workouts = load_json_workout_context()
@@ -190,6 +193,7 @@ def validate_all_planned_workouts():
     if not planned_workouts:
         return results
 
+    # Getting the max rest from Prolog
     max_rest_days_query = list(prolog.query("suggested_rest_days(MaxRestDays)."))
     max_rest_days = max_rest_days_query[0]["MaxRestDays"]
     if not max_rest_days:

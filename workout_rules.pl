@@ -48,7 +48,6 @@ exercise('plank', abdominals).
 exercise('crunches', abdominals).
 exercise('sit ups', abdominals).
 
-exercise('lunges', legs).
 exercise('calf raises', calves).
 
 % =====================================

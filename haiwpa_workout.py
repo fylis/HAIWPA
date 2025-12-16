@@ -1,10 +1,13 @@
 """
 HAIWPA Workout Extraction
+
 A Pydantic model to extract fitness-related information from user input.
 
 Source :
 - https://python.useinstructor.com/blog/2024/03/07/open-source-local-structured-output-pydantic-json-openai/#groq
 - https://www.youtube.com/watch?v=VllkW63LWbY
+
+Assistant : Claude
 """
 
 from pydantic import BaseModel, Field
