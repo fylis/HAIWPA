@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp": "2025-01-15T10:00:00",
+    "user_input": "I trained legs today",
+    "muscle": "legs",
+    "exercises": "squats",
+    "duration": 60,
+    "date": "2025-01-15",
+    "injuries": "",
+    "entry_type": "completed"
+  },
+  {
+    "timestamp": "2025-01-15T12:00:00",
+    "user_input": "Can I train legs tomorrow?",
+    "muscle": "legs",
+    "exercises": "leg press",
+    "duration": 45,
+    "date": "2025-01-16",
+    "injuries": "",
+    "entry_type": "planned"
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp": "2025-01-10T10:00:00",
+    "user_input": "I trained biceps but got injured",
+    "muscle": "biceps",
+    "exercises": "curls",
+    "duration": 30,
+    "date": "2025-01-10",
+    "injuries": "biceps strain",
+    "entry_type": "completed"
+  },
+  {
+    "timestamp": "2025-01-15T10:00:00",
+    "user_input": "Can I train back tomorrow?",
+    "muscle": "back",
+    "exercises": "deadlift",
+    "duration": 60,
+    "date": "2025-01-16",
+    "injuries": "",
+    "entry_type": "planned"
+  }
+]
